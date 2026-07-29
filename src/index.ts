@@ -1,8 +1,8 @@
 // 충전비교 MCP 서버 — PlayMCP in KC(카카오클라우드) 배포용.
 // chatgpt-app/src/index.ts의 stateless /mcp 경로를 Node.js 독립 서버로 포팅한 것.
 // 요청마다 McpServer/Transport를 새로 만들고 세션을 발급하지 않는다 (stateless Streamable HTTP).
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { McpServer } from "@modelcontextprotocol/server";
+import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import express from "express";
@@ -392,11 +392,13 @@ class EVChargerService {
     };
 
     // Tool: Get providers (read-only, no input)
-    server.tool(
+    server.registerTool(
       "getProviders",
-      "충전비교 서비스에서 한국 내 전기차 충전 사업자(CPO) 목록을 조회합니다. Retrieves the list of EV charging providers in Korea from 충전비교.",
-      {},
-      { ...readOnlyAnnotations, title: "충전 사업자 조회" },
+      {
+        description: "충전비교 서비스에서 한국 내 전기차 충전 사업자(CPO) 목록을 조회합니다. Retrieves the list of EV charging providers in Korea from 충전비교.",
+        title: "충전 사업자 조회",
+        annotations: { ...readOnlyAnnotations, title: "충전 사업자 조회" },
+      },
       async () => {
         const data = await cached("providers:top30", CACHE_TTL.PROVIDERS, async () => {
           const { data } = await this.supabase
@@ -417,11 +419,13 @@ class EVChargerService {
     );
 
     // Tool: Get cards (read-only, no input)
-    server.tool(
+    server.registerTool(
       "getCards",
-      "충전비교 서비스에서 전기차 충전 할인 혜택이 있는 카드 목록을 발급사 정보와 함께 조회합니다. Retrieves EV charging discount cards from 충전비교.",
-      {},
-      { ...readOnlyAnnotations, title: "할인 카드 조회" },
+      {
+        description: "충전비교 서비스에서 전기차 충전 할인 혜택이 있는 카드 목록을 발급사 정보와 함께 조회합니다. Retrieves EV charging discount cards from 충전비교.",
+        title: "할인 카드 조회",
+        annotations: { ...readOnlyAnnotations, title: "할인 카드 조회" },
+      },
       async () => {
         const cards = await this.getAllCards();
 
@@ -435,11 +439,13 @@ class EVChargerService {
     );
 
     // Tool: Get charger types (read-only, no input)
-    server.tool(
+    server.registerTool(
       "getChargerTypes",
-      "충전비교 서비스에서 사용하는 충전기 종류 코드를 조회합니다: DC_ULTRA(초급속), DC_FAST(급속), DC_MEDIUM(중속), AC_SLOW(완속) 등. Retrieves charger type codes used by 충전비교.",
-      {},
-      { ...readOnlyAnnotations, title: "충전기 종류 조회" },
+      {
+        description: "충전비교 서비스에서 사용하는 충전기 종류 코드를 조회합니다: DC_ULTRA(초급속), DC_FAST(급속), DC_MEDIUM(중속), AC_SLOW(완속) 등. Retrieves charger type codes used by 충전비교.",
+        title: "충전기 종류 조회",
+        annotations: { ...readOnlyAnnotations, title: "충전기 종류 조회" },
+      },
       async () => {
         const text = Object.entries(CHARGER_TYPES)
           .map(([code, label]) => `- ${code}: ${label}`)
@@ -449,16 +455,19 @@ class EVChargerService {
     );
 
     // Tool: Calculate prices (read-only, with input)
-    server.tool(
+    server.registerTool(
       "calculatePrices",
-      "충전비교 서비스에서 특정 충전 사업자와 충전기 종류에 대해 모든 할인 카드의 충전 요금을 계산·비교합니다. 회원가, 할인율, 로밍 수수료를 반영해 최저가 카드를 찾아줍니다. Calculates and compares EV charging prices across discount cards using 충전비교.",
       {
-        providerName: z.string().max(100).describe("Charging provider name in Korean (e.g. GS차지비, 에버온, SK일렉링크)"),
-        chargerType: z.string().max(30).describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW)"),
-        kwh: z.number().min(0.1).max(1000).optional().default(10).describe("Charging amount in kWh (default 10)"),
-        limit: z.number().int().min(1).max(50).optional().default(15).describe("Number of cards to show (default 15)"),
+        description: "충전비교 서비스에서 특정 충전 사업자와 충전기 종류에 대해 모든 할인 카드의 충전 요금을 계산·비교합니다. 회원가, 할인율, 로밍 수수료를 반영해 최저가 카드를 찾아줍니다. Calculates and compares EV charging prices across discount cards using 충전비교.",
+        title: "충전 요금 비교",
+        inputSchema: z.object({
+          providerName: z.string().max(100).describe("Charging provider name in Korean (e.g. GS차지비, 에버온, SK일렉링크)"),
+          chargerType: z.string().max(30).describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW)"),
+          kwh: z.number().min(0.1).max(1000).optional().default(10).describe("Charging amount in kWh (default 10)"),
+          limit: z.number().int().min(1).max(50).optional().default(15).describe("Number of cards to show (default 15)"),
+        }),
+        annotations: { ...readOnlyAnnotations, title: "충전 요금 비교" },
       },
-      { ...readOnlyAnnotations, title: "충전 요금 비교" },
       async ({ providerName, chargerType, kwh, limit }) => {
         const result = await this.calculatePricesImpl(providerName, chargerType, kwh, limit);
         return { content: [{ type: "text" as const, text: result }] };
@@ -466,17 +475,20 @@ class EVChargerService {
     );
 
     // Tool: Compare my prices (stateless — 카드 이름을 파라미터로 직접 받아 비교)
-    server.tool(
+    server.registerTool(
       "compareMyPrices",
-      "충전비교 서비스에서 사용자가 지정한 보유 카드만으로 특정 충전 사업자의 충전 요금을 비교해 최저가 카드를 찾아줍니다. Compares EV charging prices with the user's own cards using 충전비교.",
       {
-        providerName: z.string().max(100).describe("Charging provider name in Korean"),
-        chargerType: z.string().max(30).describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW)"),
-        cardNames: z.string().max(500).describe("Comma-separated card names the user owns (e.g. 현대카드, 카카오모빌리티)"),
-        kwh: z.number().min(0.1).max(1000).optional().default(10).describe("Charging amount in kWh (default 10)"),
-        limit: z.number().int().min(1).max(50).optional().default(10).describe("Number of combinations to show (default 10)"),
+        description: "충전비교 서비스에서 사용자가 지정한 보유 카드만으로 특정 충전 사업자의 충전 요금을 비교해 최저가 카드를 찾아줍니다. Compares EV charging prices with the user's own cards using 충전비교.",
+        title: "내 카드 요금 비교",
+        inputSchema: z.object({
+          providerName: z.string().max(100).describe("Charging provider name in Korean"),
+          chargerType: z.string().max(30).describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW)"),
+          cardNames: z.string().max(500).describe("Comma-separated card names the user owns (e.g. 현대카드, 카카오모빌리티)"),
+          kwh: z.number().min(0.1).max(1000).optional().default(10).describe("Charging amount in kWh (default 10)"),
+          limit: z.number().int().min(1).max(50).optional().default(10).describe("Number of combinations to show (default 10)"),
+        }),
+        annotations: { ...readOnlyAnnotations, title: "내 카드 요금 비교" },
       },
-      { ...readOnlyAnnotations, title: "내 카드 요금 비교" },
       async ({ providerName, chargerType, cardNames, kwh, limit }) => {
         // 요청 스코프 인스턴스이므로 카드 매칭 결과를 임시 저장 후 비교
         await this.saveMyCardsImpl(cardNames);
@@ -494,14 +506,17 @@ class EVChargerService {
     );
 
     // Tool: Get card coverage (read-only)
-    server.tool(
+    server.registerTool(
       "getCardCoverage",
-      "충전비교 서비스에서 각 카드가 지원하는 충전 사업자 수를 분석해, 가장 폭넓게 쓸 수 있는 할인 카드를 찾아줍니다. Analyzes card coverage across EV charging providers using 충전비교.",
       {
-        chargerType: z.string().max(30).optional().describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW). Omit for all types"),
-        limit: z.number().int().min(1).max(50).optional().default(10).describe("Number of cards to show (default 10)"),
+        description: "충전비교 서비스에서 각 카드가 지원하는 충전 사업자 수를 분석해, 가장 폭넓게 쓸 수 있는 할인 카드를 찾아줍니다. Analyzes card coverage across EV charging providers using 충전비교.",
+        title: "카드 커버리지 분석",
+        inputSchema: z.object({
+          chargerType: z.string().max(30).optional().describe("Charger type code (DC_ULTRA, DC_FAST, DC_MEDIUM, AC_SLOW). Omit for all types"),
+          limit: z.number().int().min(1).max(50).optional().default(10).describe("Number of cards to show (default 10)"),
+        }),
+        annotations: { ...readOnlyAnnotations, title: "카드 커버리지 분석" },
       },
-      { ...readOnlyAnnotations, title: "카드 커버리지 분석" },
       async ({ chargerType, limit }) => {
         const result = await this.getCardCoverageImpl(chargerType, limit);
         return { content: [{ type: "text" as const, text: result }] };
@@ -509,14 +524,17 @@ class EVChargerService {
     );
 
     // Tool: Search providers by address (read-only, uses external Kakao API)
-    server.tool(
+    server.registerTool(
       "searchProvidersByAddress",
-      "충전비교 서비스에서 주소나 장소명 주변에서 운영 중인 전기차 충전 사업자를 검색합니다. Searches for EV charging providers near a given address using 충전비교.",
       {
-        address: z.string().max(200).describe("Address or place name in Korean (e.g. '서울 강남구 역삼동', '코엑스', '부산역')"),
-        radiusMeters: z.number().int().min(100).max(20000).optional().default(2000).describe("Search radius in meters, 100-20000 (default 2000)"),
+        description: "충전비교 서비스에서 주소나 장소명 주변에서 운영 중인 전기차 충전 사업자를 검색합니다. Searches for EV charging providers near a given address using 충전비교.",
+        title: "지역 사업자 검색",
+        inputSchema: z.object({
+          address: z.string().max(200).describe("Address or place name in Korean (e.g. '서울 강남구 역삼동', '코엑스', '부산역')"),
+          radiusMeters: z.number().int().min(100).max(20000).optional().default(2000).describe("Search radius in meters, 100-20000 (default 2000)"),
+        }),
+        annotations: { ...externalApiAnnotations, title: "지역 사업자 검색" },
       },
-      { ...externalApiAnnotations, title: "지역 사업자 검색" },
       async ({ address, radiusMeters }) => {
         const result = await this.searchProvidersByAddressImpl(address, radiusMeters);
         return { content: [{ type: "text" as const, text: result }] };
@@ -1294,11 +1312,13 @@ async function handleStatelessMcp(req: express.Request, res: express.Response) {
   try {
     const server = new McpServer({
       name: "충전비교",
-      version: "1.0.1",
+      version: "2.0.0",
     });
     new EVChargerService(env).registerTools(server);
 
-    const transport = new StreamableHTTPServerTransport({
+    // MCP TypeScript SDK v2 (2026-07-28 스펙). stateless 모드는 신규(2026-07-28)와
+    // 구(2025) 클라이언트를 같은 엔드포인트에서 모두 서빙한다.
+    const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: 세션 미발급, Mcp-Session-Id 불필요
       enableJsonResponse: true,      // SSE 스트림 대신 단순 JSON 응답
     });
@@ -1337,7 +1357,7 @@ app.delete("/mcp", methodNotAllowed);
 
 // Health check
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", name: "chungjeon-bigyo-mcp", version: "1.0.1" });
+  res.json({ status: "ok", name: "chungjeon-bigyo-mcp", version: "2.0.0" });
 });
 
 // Root - app info
@@ -1348,7 +1368,7 @@ app.get("/", (_req, res) => {
       name_en: "EV Charger Price Compare",
       tagline: "전기차 충전 요금, 어떤 카드가 가장 저렴할까?",
       description: "한국 전기차 충전 요금을 카드별로 비교하고 최저가를 찾아주는 충전비교 서비스입니다. 30개 이상의 충전 사업자와 125개 이상의 할인 카드 정보를 제공합니다.",
-      version: "1.0.1",
+      version: "2.0.0",
       author: "충전비교",
       ios_app: APP_STORE_URL,
     },

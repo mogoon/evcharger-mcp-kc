@@ -1,7 +1,7 @@
 {
   "name": "evcharger-mcp-kc",
-  "version": "1.0.1",
-  "description": "충전비교 MCP 서버 (PlayMCP in KC 배포용, stateless Streamable HTTP)",
+  "version": "2.0.0",
+  "description": "충전비교 MCP 서버 (PlayMCP in KC 배포용, stateless Streamable HTTP, MCP 2026-07-28 스펙)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
     "@supabase/supabase-js": "^2.45.0",
     "express": "^5.1.0",
     "zod": "^4.4.3"

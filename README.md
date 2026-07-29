@@ -3,6 +3,9 @@
 한국 전기차 충전 요금을 카드별로 비교하고 최저가를 찾아주는 **충전비교** 서비스의 MCP 서버입니다.
 PlayMCP in KC(카카오클라우드) 배포용 — stateless Streamable HTTP, 세션 미발급.
 
+> MCP TypeScript SDK **v2 (2026-07-28 스펙)** 기반. stateless 모드가 신규(2026-07-28)와
+> 구(2025) 클라이언트를 같은 `/mcp` 엔드포인트에서 모두 서빙합니다 (`@modelcontextprotocol/server` + `@modelcontextprotocol/node`).
+
 ## 툴 (7개)
 
 - `getProviders` — 충전 사업자 목록
